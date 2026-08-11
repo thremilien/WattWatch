@@ -50,6 +50,7 @@ class KasaPlugDriver:
             led_on=dev.modules["Led"].led,
             on_since=on_since,
             uptime_seconds=uptime_seconds,
+            device_time=dev.modules["Time"].time,
         )
 
     async def get_live(self) -> LiveReading:
@@ -90,3 +91,6 @@ class KasaPlugDriver:
     async def erase_stats(self) -> None:
         energy = self._device.modules["Energy"]
         await energy.erase_stats()
+
+    async def sync_time(self, dt: datetime) -> None:
+        await self._device.modules["Time"].set_time(dt)

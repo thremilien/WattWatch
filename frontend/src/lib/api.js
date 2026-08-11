@@ -88,6 +88,19 @@ export const api = {
   setLed: (on) => post('/api/device/led', { on }),
   setAlias: (alias) => post('/api/device/alias', { alias }),
   reboot: () => post('/api/device/reboot'),
+  syncTime: () => {
+    // The browser's own local wall-clock fields — never converted through
+    // UTC, since the device has no reliable way to know our timezone.
+    const now = new Date();
+    return post('/api/device/sync-time', {
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      day: now.getDate(),
+      hour: now.getHours(),
+      minute: now.getMinutes(),
+      second: now.getSeconds()
+    });
+  },
 
   energyDaily: (year, month) => {
     const params = new URLSearchParams();

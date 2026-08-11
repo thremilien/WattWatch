@@ -1,6 +1,7 @@
 """Focused end-to-end coverage of the WattWatch API contract."""
 
 import time
+from datetime import datetime
 
 import httpx
 import pytest
@@ -76,6 +77,21 @@ async def test_power_control_reaches_driver(
     assert response.status_code == 200
     assert fake_driver.set_power_calls == [False]
     assert response.json()["is_on"] is False
+
+
+async def test_sync_time_sends_naive_local_datetime_to_driver(
+    authed_client: httpx.AsyncClient, fake_driver: FakePlugDriver
+) -> None:
+    payload = {"year": 2026, "month": 8, "day": 12, "hour": 0, "minute": 18, "second": 30}
+    response = await authed_client.post("/api/device/sync-time", json=payload)
+    assert response.status_code == 200
+    assert fake_driver.sync_time_calls == [datetime(2026, 8, 12, 0, 18, 30)]
+
+
+async def test_sync_time_rejects_an_impossible_date(authed_client: httpx.AsyncClient) -> None:
+    payload = {"year": 2026, "month": 2, "day": 30, "hour": 0, "minute": 0, "second": 0}
+    response = await authed_client.post("/api/device/sync-time", json=payload)
+    assert response.status_code == 422
 
 
 async def test_energy_monthly_sorted_ascending(authed_client: httpx.AsyncClient) -> None:

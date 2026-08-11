@@ -27,6 +27,7 @@ class DeviceInfo:
     led_on: bool
     on_since: datetime | None
     uptime_seconds: int | None
+    device_time: datetime | None
 
 
 @dataclass(slots=True)
@@ -86,4 +87,14 @@ class PlugDriver(Protocol):
 
     async def erase_stats(self) -> None:
         """Erase the device's on-board accumulated emeter statistics."""
+        ...
+
+    async def sync_time(self, dt: datetime) -> None:
+        """Push a naive local wall-clock datetime to the device.
+
+        `dt` must be naive (no tzinfo) — it is written as literal
+        year/month/day/hour/minute/second fields, not converted through any
+        timezone math, so the caller is responsible for it already being in
+        the device's intended local time.
+        """
         ...

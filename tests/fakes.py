@@ -35,6 +35,8 @@ class FakePlugDriver:
         self.erase_stats_called = False
         self.reboot_called = False
         self.set_power_calls: list[bool] = []
+        self.device_time = datetime.now().astimezone()
+        self.sync_time_calls: list[datetime] = []
 
     async def refresh(self) -> None:
         if self.fail:
@@ -56,6 +58,7 @@ class FakePlugDriver:
             led_on=self.led_on,
             on_since=datetime.now().astimezone(),
             uptime_seconds=12345,
+            device_time=self.device_time,
         )
 
     async def get_live(self) -> LiveReading:
@@ -106,3 +109,9 @@ class FakePlugDriver:
         if self.fail:
             raise ConnectionError("simulated device unreachable")
         self.erase_stats_called = True
+
+    async def sync_time(self, dt: datetime) -> None:
+        if self.fail:
+            raise ConnectionError("simulated device unreachable")
+        self.sync_time_calls.append(dt)
+        self.device_time = dt

@@ -25,6 +25,7 @@ class DeviceOut(BaseModel):
     led_on: bool
     on_since: datetime | None
     uptime_seconds: int | None
+    device_time: datetime | None
 
     @classmethod
     def from_info(cls, info: DeviceInfo) -> "DeviceOut":
@@ -41,6 +42,7 @@ class DeviceOut(BaseModel):
             led_on=info.led_on,
             on_since=info.on_since,
             uptime_seconds=info.uptime_seconds,
+            device_time=info.device_time,
         )
 
 

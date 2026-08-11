@@ -80,6 +80,22 @@
     }
   }
 
+  // Sync device clock
+  let syncTimePending = $state(false);
+
+  async function syncTime() {
+    syncTimePending = true;
+    try {
+      const updated = await api.syncTime();
+      deviceState.applyDeviceOnly(updated);
+      toasts.push('Device clock synced.', 'success', 2500);
+    } catch (err) {
+      toasts.push(describeError(err), 'error');
+    } finally {
+      syncTimePending = false;
+    }
+  }
+
   // Reset energy stats
   let resetConfirmOpen = $state(false);
   let resetPending = $state(false);
@@ -155,6 +171,13 @@
     <span class="row-label">Reboot device</span>
     <button class="btn sm" onclick={() => (rebootConfirmOpen = true)} disabled={disabled}>
       Reboot
+    </button>
+  </div>
+
+  <div class="row">
+    <span class="row-label">Sync device clock</span>
+    <button class="btn sm" onclick={syncTime} disabled={disabled || syncTimePending}>
+      {syncTimePending ? 'Syncing…' : 'Sync'}
     </button>
   </div>
 

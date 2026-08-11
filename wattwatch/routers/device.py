@@ -7,8 +7,10 @@ afterwards). Device communication failures on these write paths are surfaced
 as `502`, never a bare 5xx traceback.
 """
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from wattwatch.auth.dependencies import require_user
 from wattwatch.devices.base import PlugDriver
@@ -36,6 +38,23 @@ class AliasRequest(BaseModel):
         if not (1 <= len(stripped) <= 31):
             raise ValueError("alias must be 1-31 characters after stripping whitespace")
         return stripped
+
+
+class SyncTimeRequest(BaseModel):
+    """The caller's own local wall-clock fields — never a UTC instant.
+
+    The device has no way to know the caller's timezone, and its own
+    configured timezone may itself be wrong (that's usually why this
+    endpoint gets called), so the only thing that's actually trustworthy
+    here is "what time does the caller's clock read right now".
+    """
+
+    year: int = Field(ge=2000, le=2100)
+    month: int = Field(ge=1, le=12)
+    day: int = Field(ge=1, le=31)
+    hour: int = Field(ge=0, le=23)
+    minute: int = Field(ge=0, le=59)
+    second: int = Field(ge=0, le=59)
 
 
 def _get_service(request: Request) -> DeviceService:
@@ -82,6 +101,25 @@ async def set_alias(payload: AliasRequest, request: Request) -> DeviceOut:
 
     async def _fn(driver: PlugDriver) -> None:
         await driver.set_alias(payload.alias)
+
+    return await _act_or_502(service, _fn)
+
+
+@router.post("/sync-time", response_model=DeviceOut)
+async def sync_time(payload: SyncTimeRequest, request: Request) -> DeviceOut:
+    try:
+        dt = datetime(
+            payload.year, payload.month, payload.day, payload.hour, payload.minute, payload.second
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+        ) from exc
+
+    service = _get_service(request)
+
+    async def _fn(driver: PlugDriver) -> None:
+        await driver.sync_time(dt)
 
     return await _act_or_502(service, _fn)
 

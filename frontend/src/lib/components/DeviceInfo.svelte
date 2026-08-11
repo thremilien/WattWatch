@@ -1,9 +1,18 @@
 <script>
   import { deviceState } from '../state.svelte.js';
-  import { humanizeUptime, DASH } from '../format.js';
+  import { humanizeUptime, fmtDate, fmtClockTime, DASH } from '../format.js';
   import SignalBars from './SignalBars.svelte';
 
   let device = $derived(deviceState.device);
+
+  // Positive: the device's own clock is ahead of this browser's. Negative:
+  // behind. Comparing epoch instants sidesteps any timezone label mismatch
+  // between the two — see wattwatch/devices/kasa.py's Time module usage.
+  let clockDriftSeconds = $derived.by(() => {
+    if (!device?.device_time) return null;
+    return (new Date(device.device_time).getTime() - Date.now()) / 1000;
+  });
+  let clockMismatch = $derived(clockDriftSeconds !== null && Math.abs(clockDriftSeconds) >= 300);
 </script>
 
 <section class="device-info card">
@@ -47,6 +56,23 @@
       <div class="row">
         <dt>Host</dt>
         <dd>{device.host ?? DASH}</dd>
+      </div>
+      <div class="row">
+        <dt>Device clock</dt>
+        <dd class="clock-cell">
+          <span class:mismatch={clockMismatch}>
+            {device.device_time
+              ? `${fmtDate(device.device_time)} ${fmtClockTime(device.device_time)}`
+              : DASH}
+          </span>
+          {#if clockMismatch}
+            <span class="drift-note"
+              >{clockDriftSeconds > 0 ? 'ahead' : 'behind'} by {humanizeUptime(
+                Math.abs(clockDriftSeconds)
+              )}</span
+            >
+          {/if}
+        </dd>
       </div>
     </dl>
   {/if}
@@ -124,5 +150,22 @@
   .rssi-value {
     color: var(--ink-muted);
     font-size: 0.75rem;
+  }
+
+  .clock-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.15rem;
+  }
+
+  .mismatch {
+    color: var(--signal);
+  }
+
+  .drift-note {
+    color: var(--ink-muted);
+    font-size: 0.75rem;
+    font-weight: 400;
   }
 </style>
