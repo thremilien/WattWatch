@@ -1,6 +1,9 @@
 <script>
   // Simple bar chart for daily/monthly on-device energy stats.
-  // Expects entries: [{ label, value }].
+  // Expects entries: [{ label, value, current, projected }]. `projected` is
+  // a forecasted end-of-period total, set only on the still-in-progress
+  // entry (today / this month), and rendered as a hatched zone above the
+  // actual bar so a partial period reads at its true expected height.
   import { fmtKwh } from '../format.js';
 
   let { entries = [], unit = 'kWh', height = 200 } = $props();
@@ -9,12 +12,15 @@
   const padTop = 12;
   const padBottom = 22;
   const barGap = 4;
+  // Unique per instance: two BarCharts (daily + monthly) share one DOM, and
+  // SVG pattern ids are global regardless of which <svg> defines them.
+  const hatchId = `barchart-hatch-${Math.random().toString(36).slice(2)}`;
 
   let plotHeight = $derived(height - padTop - padBottom);
 
   let maxValue = $derived.by(() => {
     if (!entries.length) return 1;
-    const max = Math.max(...entries.map((e) => e.value ?? 0));
+    const max = Math.max(...entries.map((e) => Math.max(e.value ?? 0, e.projected ?? 0)));
     return max > 0 ? max : 1;
   });
 
@@ -34,23 +40,63 @@
       role="img"
       aria-label="Energy usage by period"
     >
+      <defs>
+        <pattern
+          id={hatchId}
+          width="5"
+          height="5"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(45)"
+        >
+          <line x1="0" y1="0" x2="0" y2="5" stroke="var(--signal)" stroke-width="1.5" />
+        </pattern>
+      </defs>
       {#each entries as entry, i (entry.label)}
         {@const barHeight = ((entry.value ?? 0) / maxValue) * plotHeight}
+        {@const hasProjection = (entry.projected ?? 0) > (entry.value ?? 0)}
+        {@const projectedHeight = hasProjection ? (entry.projected / maxValue) * plotHeight : 0}
         {@const x = i * (width / entries.length) + barGap / 2}
         {@const y = padTop + plotHeight - barHeight}
-        <rect
-          {x}
-          {y}
-          width={barWidth}
-          height={Math.max(barHeight, entry.value ? 2 : 0)}
-          fill={entry.current ? 'var(--signal)' : 'var(--ink)'}
-          fill-opacity={entry.current ? '1' : hoverIndex === i ? '0.85' : '0.7'}
+        {@const projectedY = padTop + plotHeight - projectedHeight}
+        <g
           onmouseenter={() => (hoverIndex = i)}
           onmouseleave={() => (hoverIndex = null)}
           role="presentation"
         >
-          <title>{entry.label}: {fmtKwh(entry.value)} {unit}</title>
-        </rect>
+          {#if hasProjection}
+            <rect
+              x={x}
+              y={projectedY}
+              width={barWidth}
+              height={projectedHeight - barHeight}
+              fill="url(#{hatchId})"
+              fill-opacity={hoverIndex === i ? '0.55' : '0.4'}
+            />
+            <line
+              x1={x}
+              x2={x + barWidth}
+              y1={projectedY}
+              y2={projectedY}
+              stroke="var(--signal)"
+              stroke-width="1"
+              stroke-dasharray="2 2"
+            />
+          {/if}
+          <rect
+            {x}
+            {y}
+            width={barWidth}
+            height={Math.max(barHeight, entry.value ? 2 : 0)}
+            fill={entry.current ? 'var(--signal)' : 'var(--ink)'}
+            fill-opacity={entry.current ? '1' : hoverIndex === i ? '0.85' : '0.7'}
+          >
+            <title
+              >{entry.label}: {fmtKwh(entry.value)} {unit}{hasProjection
+                ? ` (projected ${fmtKwh(entry.projected)} ${unit})`
+                : ''}</title
+            >
+          </rect>
+        </g>
         {#if entries.length <= 12 || i % Math.ceil(entries.length / 12) === 0}
           <text
             x={x + barWidth / 2}
@@ -65,9 +111,16 @@
     </svg>
 
     {#if hoverIndex !== null}
+      {@const hovered = entries[hoverIndex]}
+      {@const hoveredHasProjection = (hovered.projected ?? 0) > (hovered.value ?? 0)}
       <div class="readout">
-        <span class="readout-label">{entries[hoverIndex].label}</span>
-        <span class="readout-value tabular">{fmtKwh(entries[hoverIndex].value)} {unit}</span>
+        <span class="readout-label">{hovered.label}</span>
+        <span class="readout-value tabular">
+          {fmtKwh(hovered.value)} {unit}
+          {#if hoveredHasProjection}
+            <span class="readout-projected">→ ~{fmtKwh(hovered.projected)} {unit} projected</span>
+          {/if}
+        </span>
       </div>
     {/if}
   {/if}
@@ -120,5 +173,11 @@
     color: var(--signal);
     font-weight: 500;
     font-family: var(--font-mono);
+  }
+
+  .readout-projected {
+    color: var(--ink-muted);
+    font-weight: 400;
+    margin-left: 0.5em;
   }
 </style>

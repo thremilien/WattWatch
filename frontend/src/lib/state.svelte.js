@@ -172,3 +172,37 @@ class DeviceState {
 }
 
 export const deviceState = new DeviceState();
+
+const PRICE_STORAGE_KEY = 'wattwatch:price-per-kwh';
+
+function loadStoredPrice() {
+  try {
+    const raw = localStorage.getItem(PRICE_STORAGE_KEY);
+    if (raw === null) return null;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// Electricity price is a personal preference, not device state — kept in
+// localStorage rather than the backend so it needs no auth/API surface.
+class PriceState {
+  perKwh = $state(loadStoredPrice());
+
+  set(value) {
+    this.perKwh = value;
+    try {
+      if (value === null) {
+        localStorage.removeItem(PRICE_STORAGE_KEY);
+      } else {
+        localStorage.setItem(PRICE_STORAGE_KEY, String(value));
+      }
+    } catch {
+      // localStorage unavailable (private mode, etc.) — price won't persist.
+    }
+  }
+}
+
+export const priceState = new PriceState();

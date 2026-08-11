@@ -27,6 +27,10 @@ export function fmtKwh(value, digits = 2) {
   return fmtNumber(value, digits);
 }
 
+export function fmtEuro(value, digits = 2) {
+  return fmtNumber(value, digits);
+}
+
 export function humanizeUptime(seconds) {
   if (seconds === null || seconds === undefined || Number.isNaN(seconds) || seconds < 0) {
     return DASH;

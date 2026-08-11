@@ -2,11 +2,27 @@
   // On-device energy counters: daily (per day of a month) and monthly
   // (per month of a year), each with prev/next navigation.
   import { api, ApiError } from '../api.js';
-  import { deviceState } from '../state.svelte.js';
-  import { fmtKwh, MONTH_NAMES, DASH } from '../format.js';
+  import { deviceState, priceState } from '../state.svelte.js';
+  import { fmtKwh, fmtEuro, MONTH_NAMES, DASH } from '../format.js';
   import BarChart from '../charts/BarChart.svelte';
 
   const now = new Date();
+
+  // Straight-line projection to end-of-period from how much of the period
+  // has elapsed. Floored so the very first minute of a day/month doesn't
+  // extrapolate to an absurd spike.
+  function projectDaily(kwhSoFar) {
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const fraction = Math.max((Date.now() - startOfDay.getTime()) / 86_400_000, 0.01);
+    return kwhSoFar / fraction;
+  }
+
+  function projectMonthly(kwhSoFar) {
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const fraction = Math.max((Date.now() - startOfMonth.getTime()) / (daysInMonth * 86_400_000), 0.01);
+    return kwhSoFar / fraction;
+  }
 
   let dailyYear = $state(now.getFullYear());
   let dailyMonth = $state(now.getMonth() + 1); // 1-12
@@ -26,11 +42,15 @@
       const res = await api.energyDaily(dailyYear, dailyMonth);
       const isCurrentMonth = dailyYear === now.getFullYear() && dailyMonth === now.getMonth() + 1;
       const today = now.getDate();
-      dailyEntries = (res.entries ?? []).map((e) => ({
-        label: String(e.day),
-        value: e.kwh,
-        current: isCurrentMonth && e.day === today
-      }));
+      dailyEntries = (res.entries ?? []).map((e) => {
+        const isToday = isCurrentMonth && e.day === today;
+        return {
+          label: String(e.day),
+          value: e.kwh,
+          current: isToday,
+          projected: isToday ? projectDaily(e.kwh) : null
+        };
+      });
     } catch (err) {
       dailyError = err instanceof ApiError ? err.message : 'Could not load daily stats.';
     } finally {
@@ -45,11 +65,15 @@
       const res = await api.energyMonthly(monthlyYear);
       const isCurrentYear = monthlyYear === now.getFullYear();
       const thisMonth = now.getMonth() + 1;
-      monthlyEntries = (res.entries ?? []).map((e) => ({
-        label: MONTH_NAMES[e.month - 1]?.slice(0, 3) ?? String(e.month),
-        value: e.kwh,
-        current: isCurrentYear && e.month === thisMonth
-      }));
+      monthlyEntries = (res.entries ?? []).map((e) => {
+        const isThisMonth = isCurrentYear && e.month === thisMonth;
+        return {
+          label: MONTH_NAMES[e.month - 1]?.slice(0, 3) ?? String(e.month),
+          value: e.kwh,
+          current: isThisMonth,
+          projected: isThisMonth ? projectMonthly(e.kwh) : null
+        };
+      });
     } catch (err) {
       monthlyError = err instanceof ApiError ? err.message : 'Could not load monthly stats.';
     } finally {
@@ -84,6 +108,34 @@
   }
 
   let live = $derived(deviceState.live);
+
+  let priceInput = $state(priceState.perKwh !== null ? String(priceState.perKwh) : '');
+
+  function commitPrice() {
+    const trimmed = priceInput.trim();
+    if (trimmed === '') {
+      priceState.set(null);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      priceState.set(parsed);
+    } else {
+      // Reject silently back to the last valid value — no error UI for a
+      // single optional local preference field.
+      priceInput = priceState.perKwh !== null ? String(priceState.perKwh) : '';
+    }
+  }
+
+  let cost = $derived.by(() => {
+    const price = priceState.perKwh;
+    if (price === null || !live) return { today: null, month: null, total: null };
+    return {
+      today: live.today_kwh != null ? live.today_kwh * price : null,
+      month: live.month_kwh != null ? live.month_kwh * price : null,
+      total: live.total_kwh != null ? live.total_kwh * price : null
+    };
+  });
 </script>
 
 <section class="stats-grid">
@@ -101,6 +153,36 @@
       <div class="stat">
         <span class="label">All time</span>
         <span class="value tabular">{live ? fmtKwh(live.total_kwh) : DASH} kWh</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="totals card">
+    <div class="header-row">
+      <h2 class="section-title">Cost</h2>
+      <label class="price-field">
+        <span class="label">€ / kWh</span>
+        <input
+          type="text"
+          inputmode="decimal"
+          placeholder="0.00"
+          bind:value={priceInput}
+          onchange={commitPrice}
+        />
+      </label>
+    </div>
+    <div class="totals-row">
+      <div class="stat">
+        <span class="label">Today</span>
+        <span class="value tabular">{cost.today !== null ? fmtEuro(cost.today) : DASH} €</span>
+      </div>
+      <div class="stat">
+        <span class="label">This month</span>
+        <span class="value tabular">{cost.month !== null ? fmtEuro(cost.month) : DASH} €</span>
+      </div>
+      <div class="stat">
+        <span class="label">All time</span>
+        <span class="value tabular">{cost.total !== null ? fmtEuro(cost.total) : DASH} €</span>
       </div>
     </div>
   </div>
@@ -181,6 +263,28 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+  }
+
+  .price-field {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .price-field .label {
+    white-space: nowrap;
+  }
+
+  .price-field input {
+    background: var(--recess);
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius-sm);
+    padding: 0.35em 0.5em;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    width: 70px;
+    text-align: right;
   }
 
   .nav-btn {
