@@ -129,13 +129,34 @@
 
   let cost = $derived.by(() => {
     const price = priceState.perKwh;
-    if (price === null || !live) return { today: null, month: null, total: null };
+    if (price === null || !live) {
+      return { today: null, todayProjected: null, month: null, monthProjected: null, total: null };
+    }
+    const todayKwh = live.today_kwh;
+    const monthKwh = live.month_kwh;
     return {
-      today: live.today_kwh != null ? live.today_kwh * price : null,
-      month: live.month_kwh != null ? live.month_kwh * price : null,
+      today: todayKwh != null ? todayKwh * price : null,
+      todayProjected: todayKwh != null ? projectDaily(todayKwh) * price : null,
+      month: monthKwh != null ? monthKwh * price : null,
+      monthProjected: monthKwh != null ? projectMonthly(monthKwh) * price : null,
       total: live.total_kwh != null ? live.total_kwh * price : null
     };
   });
+
+  // Bar chart entries, with cost (and projected cost) merged in from the
+  // current price — kept separate from the fetched entries so editing the
+  // price recomputes cost without a re-fetch.
+  function withCost(entries, price) {
+    if (price === null) return entries;
+    return entries.map((e) => ({
+      ...e,
+      cost: e.value != null ? e.value * price : null,
+      projectedCost: e.projected != null ? e.projected * price : null
+    }));
+  }
+
+  let dailyEntriesWithCost = $derived(withCost(dailyEntries, priceState.perKwh));
+  let monthlyEntriesWithCost = $derived(withCost(monthlyEntries, priceState.perKwh));
 </script>
 
 <section class="stats-grid">
@@ -174,11 +195,13 @@
     <div class="totals-row">
       <div class="stat">
         <span class="label">Today</span>
-        <span class="value tabular">{cost.today !== null ? fmtEuro(cost.today) : DASH} €</span>
+        <span class="value tabular">{cost.todayProjected !== null ? fmtEuro(cost.todayProjected) : DASH} €</span>
+        <span class="value-sub tabular">{cost.today !== null ? fmtEuro(cost.today) : DASH} € so far</span>
       </div>
       <div class="stat">
         <span class="label">This month</span>
-        <span class="value tabular">{cost.month !== null ? fmtEuro(cost.month) : DASH} €</span>
+        <span class="value tabular">{cost.monthProjected !== null ? fmtEuro(cost.monthProjected) : DASH} €</span>
+        <span class="value-sub tabular">{cost.month !== null ? fmtEuro(cost.month) : DASH} € so far</span>
       </div>
       <div class="stat">
         <span class="label">All time</span>
@@ -199,7 +222,7 @@
     {#if dailyError}
       <p class="error">{dailyError}</p>
     {:else}
-      <BarChart entries={dailyEntries} unit="kWh" />
+      <BarChart entries={dailyEntriesWithCost} unit="kWh" />
     {/if}
   </div>
 
@@ -215,7 +238,7 @@
     {#if monthlyError}
       <p class="error">{monthlyError}</p>
     {:else}
-      <BarChart entries={monthlyEntries} unit="kWh" />
+      <BarChart entries={monthlyEntriesWithCost} unit="kWh" />
     {/if}
   </div>
 </section>
@@ -325,6 +348,13 @@
     font-size: 1.25rem;
     font-weight: 500;
     color: var(--ink);
+  }
+
+  .stat .value-sub {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--ink-muted);
   }
 
   .error {

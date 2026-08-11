@@ -1,10 +1,12 @@
 <script>
   // Simple bar chart for daily/monthly on-device energy stats.
-  // Expects entries: [{ label, value, current, projected }]. `projected` is
-  // a forecasted end-of-period total, set only on the still-in-progress
-  // entry (today / this month), and rendered as a hatched zone above the
-  // actual bar so a partial period reads at its true expected height.
-  import { fmtKwh } from '../format.js';
+  // Expects entries: [{ label, value, current, projected, cost, projectedCost }].
+  // `projected`/`projectedCost` are forecasted end-of-period totals, set only
+  // on the still-in-progress entry (today / this month), and rendered as a
+  // hatched zone above the actual bar so a partial period reads at its true
+  // expected height. `cost`/`projectedCost` are optional (only present once a
+  // €/kWh price is set) and shown alongside kWh on hover, not as a second chart.
+  import { fmtKwh, fmtEuro } from '../format.js';
 
   let { entries = [], unit = 'kWh', height = 200 } = $props();
 
@@ -93,6 +95,12 @@
             <title
               >{entry.label}: {fmtKwh(entry.value)} {unit}{hasProjection
                 ? ` (projected ${fmtKwh(entry.projected)} ${unit})`
+                : ''}{entry.cost != null
+                ? ` · ${fmtEuro(entry.cost)} €${
+                    hasProjection && entry.projectedCost != null
+                      ? ` (projected ${fmtEuro(entry.projectedCost)} €)`
+                      : ''
+                  }`
                 : ''}</title
             >
           </rect>
@@ -115,12 +123,22 @@
       {@const hoveredHasProjection = (hovered.projected ?? 0) > (hovered.value ?? 0)}
       <div class="readout">
         <span class="readout-label">{hovered.label}</span>
-        <span class="readout-value tabular">
-          {fmtKwh(hovered.value)} {unit}
-          {#if hoveredHasProjection}
-            <span class="readout-projected">→ ~{fmtKwh(hovered.projected)} {unit} projected</span>
+        <div class="readout-values">
+          <span class="readout-value tabular">
+            {fmtKwh(hovered.value)} {unit}
+            {#if hoveredHasProjection}
+              <span class="readout-projected">→ ~{fmtKwh(hovered.projected)} {unit} projected</span>
+            {/if}
+          </span>
+          {#if hovered.cost != null}
+            <span class="readout-value readout-cost tabular">
+              {fmtEuro(hovered.cost)} €
+              {#if hoveredHasProjection && hovered.projectedCost != null}
+                <span class="readout-projected">→ ~{fmtEuro(hovered.projectedCost)} € projected</span>
+              {/if}
+            </span>
           {/if}
-        </span>
+        </div>
       </div>
     {/if}
   {/if}
@@ -158,6 +176,7 @@
   .readout {
     display: flex;
     justify-content: space-between;
+    align-items: flex-start;
     padding-top: 0.5rem;
     border-top: 1px solid var(--hairline);
     margin-top: 0.5rem;
@@ -169,10 +188,22 @@
     font-family: var(--font-mono);
   }
 
+  .readout-values {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.25rem;
+  }
+
   .readout-value {
     color: var(--signal);
     font-weight: 500;
     font-family: var(--font-mono);
+  }
+
+  .readout-cost {
+    color: var(--ink-muted);
+    font-size: 0.75rem;
   }
 
   .readout-projected {
