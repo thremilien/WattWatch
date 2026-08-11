@@ -6,7 +6,7 @@
   // hatched zone above the actual bar so a partial period reads at its true
   // expected height. `cost`/`projectedCost` are optional (only present once a
   // €/kWh price is set) and shown alongside kWh on hover, not as a second chart.
-  import { fmtKwh, fmtEuro } from '../format.js';
+  import { fmtKwh, fmtEuro, DASH } from '../format.js';
 
   let { entries = [], unit = 'kWh', height = 200 } = $props();
 
@@ -27,8 +27,17 @@
   });
 
   let barWidth = $derived(entries.length ? width / entries.length - barGap : 0);
+  let colWidth = $derived(entries.length ? width / entries.length : 0);
 
   let hoverIndex = $state(null);
+  let hovered = $derived(hoverIndex !== null ? entries[hoverIndex] : null);
+  let hoveredHasProjection = $derived(
+    hovered ? (hovered.projected ?? 0) > (hovered.value ?? 0) : false
+  );
+  // Reserve the cost row whenever any entry carries cost data, not just the
+  // hovered one, so a price being set/unset is the only thing that resizes
+  // the readout — hovering never does.
+  let hasCostData = $derived(entries.some((e) => e.cost != null));
 </script>
 
 <div class="chart-wrap">
@@ -57,7 +66,8 @@
         {@const barHeight = ((entry.value ?? 0) / maxValue) * plotHeight}
         {@const hasProjection = (entry.projected ?? 0) > (entry.value ?? 0)}
         {@const projectedHeight = hasProjection ? (entry.projected / maxValue) * plotHeight : 0}
-        {@const x = i * (width / entries.length) + barGap / 2}
+        {@const colX = i * (width / entries.length)}
+        {@const x = colX + barGap / 2}
         {@const y = padTop + plotHeight - barHeight}
         {@const projectedY = padTop + plotHeight - projectedHeight}
         <g
@@ -65,6 +75,10 @@
           onmouseleave={() => (hoverIndex = null)}
           role="presentation"
         >
+          <!-- Invisible full-height hit area: a tiny bar (e.g. near-zero
+               today's reading) would otherwise be nearly impossible to
+               hover precisely. -->
+          <rect x={colX} y={padTop} width={colWidth} height={plotHeight} fill="transparent" />
           {#if hasProjection}
             <rect
               x={x}
@@ -118,29 +132,28 @@
       {/each}
     </svg>
 
-    {#if hoverIndex !== null}
-      {@const hovered = entries[hoverIndex]}
-      {@const hoveredHasProjection = (hovered.projected ?? 0) > (hovered.value ?? 0)}
-      <div class="readout">
-        <span class="readout-label">{hovered.label}</span>
-        <div class="readout-values">
-          <span class="readout-value tabular">
-            {fmtKwh(hovered.value)} {unit}
-            {#if hoveredHasProjection}
-              <span class="readout-projected">→ ~{fmtKwh(hovered.projected)} {unit} projected</span>
+    <!-- Always rendered, at fixed height, so hovering never resizes the
+         card — a resize under the cursor was flipping mouseenter/mouseleave
+         in a loop and made small bars flicker. -->
+    <div class="readout">
+      <span class="readout-label">{hovered ? hovered.label : DASH}</span>
+      <div class="readout-values">
+        <span class="readout-value tabular" class:idle={!hovered}>
+          {hovered ? fmtKwh(hovered.value) : DASH} {unit}
+          {#if hovered && hoveredHasProjection}
+            <span class="readout-projected">→ ~{fmtKwh(hovered.projected)} {unit} projected</span>
+          {/if}
+        </span>
+        {#if hasCostData}
+          <span class="readout-value readout-cost tabular">
+            {hovered && hovered.cost != null ? fmtEuro(hovered.cost) : DASH} €
+            {#if hovered && hoveredHasProjection && hovered.projectedCost != null}
+              <span class="readout-projected">→ ~{fmtEuro(hovered.projectedCost)} € projected</span>
             {/if}
           </span>
-          {#if hovered.cost != null}
-            <span class="readout-value readout-cost tabular">
-              {fmtEuro(hovered.cost)} €
-              {#if hoveredHasProjection && hovered.projectedCost != null}
-                <span class="readout-projected">→ ~{fmtEuro(hovered.projectedCost)} € projected</span>
-              {/if}
-            </span>
-          {/if}
-        </div>
+        {/if}
       </div>
-    {/if}
+    </div>
   {/if}
 </div>
 
@@ -199,6 +212,11 @@
     color: var(--signal);
     font-weight: 500;
     font-family: var(--font-mono);
+  }
+
+  .readout-value.idle {
+    color: var(--ink-muted);
+    font-weight: 400;
   }
 
   .readout-cost {
