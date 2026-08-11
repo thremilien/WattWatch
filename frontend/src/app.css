@@ -1,0 +1,158 @@
+:root {
+  color-scheme: light;
+
+  /* instrument panel surfaces */
+  --panel: #e4e2dd; /* warm pale instrument panel — page background */
+  --recess: #d6d3cb; /* inset wells that charts and the meter sit in */
+
+  /* ink */
+  --ink: #1c1a17; /* type, tick marks, pivot */
+  --ink-muted: #5c584f; /* labels, axis text, inactive states — darkened from spec #6E6A62 for AA on --recess */
+
+  /* signal colors */
+  --signal: #e2431f; /* needle, live power, active toggle, destructive actions */
+  --data-blue: #2e5c8a; /* voltage readouts */
+
+  /* hairlines */
+  --hairline: rgb(28 26 23 / 12%);
+
+  /* type */
+  --font-ui: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-condensed: 'IBM Plex Sans Condensed', var(--font-ui);
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* layout */
+  --radius-sm: 2px;
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --max-width: 1100px;
+
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--panel);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  color: inherit;
+}
+
+input {
+  font-family: inherit;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-lg);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  border: 1px solid var(--hairline);
+  background: var(--recess);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  padding: 0.6em 1.1em;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease), opacity 0.15s var(--ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: #cac7bd;
+  border-color: var(--ink-muted);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn:focus-visible,
+button:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--signal);
+  outline-offset: 2px;
+}
+
+.btn-danger {
+  border-color: color-mix(in srgb, var(--signal) 40%, transparent);
+  color: var(--signal);
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--signal) 12%, var(--panel));
+  border-color: var(--signal);
+}
+
+.btn-primary {
+  background: var(--signal);
+  border-color: var(--signal);
+  color: var(--panel);
+  font-weight: 600;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #c93a19;
+  border-color: #c93a19;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

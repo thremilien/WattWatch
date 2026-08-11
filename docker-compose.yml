@@ -1,0 +1,22 @@
+services:
+  wattwatch:
+    build: .
+    image: wattwatch:latest
+    container_name: wattwatch
+    restart: unless-stopped
+    ports:
+      # Traefik (or any external reverse proxy) routes to this port.
+      - "8420:8420"
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD must be set}
+      # Optional: keeps sessions valid across restarts. Random per-boot if unset.
+      SECRET_KEY: ${SECRET_KEY:-}
+      # IP of the Kasa HS110 on the LAN.
+      KASA_HOST: ${KASA_HOST:-192.168.10.8}
+    volumes:
+      # SQLite lives here so local history survives redeploys.
+      - wattwatch-data:/data
+
+volumes:
+  wattwatch-data:
