@@ -9,19 +9,28 @@
   const now = new Date();
 
   // Straight-line projection to end-of-period from how much of the period
-  // has elapsed. Floored so the very first minute of a day/month doesn't
-  // extrapolate to an absurd spike.
+  // has elapsed. Below MIN_*_ELAPSED_MS there's too little data to
+  // extrapolate meaningfully — a couple of minutes' reading blown up to a
+  // full day/month swings wildly with normal usage noise (e.g. a boot
+  // spike right after midnight) — so this returns kwhSoFar unprojected.
+  // Downstream `projected > value` checks then treat that as "no
+  // projection yet" instead of showing a misleading multiplier.
+  const MIN_DAILY_ELAPSED_MS = 30 * 60 * 1000; // 30 minutes
+  const MIN_MONTHLY_ELAPSED_MS = 3 * 60 * 60 * 1000; // 3 hours
+
   function projectDaily(kwhSoFar) {
     const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const fraction = Math.max((Date.now() - startOfDay.getTime()) / 86_400_000, 0.01);
-    return kwhSoFar / fraction;
+    const elapsedMs = Date.now() - startOfDay.getTime();
+    if (elapsedMs < MIN_DAILY_ELAPSED_MS) return kwhSoFar;
+    return kwhSoFar / (elapsedMs / 86_400_000);
   }
 
   function projectMonthly(kwhSoFar) {
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-    const fraction = Math.max((Date.now() - startOfMonth.getTime()) / (daysInMonth * 86_400_000), 0.01);
-    return kwhSoFar / fraction;
+    const elapsedMs = Date.now() - startOfMonth.getTime();
+    if (elapsedMs < MIN_MONTHLY_ELAPSED_MS) return kwhSoFar;
+    return kwhSoFar / (elapsedMs / (daysInMonth * 86_400_000));
   }
 
   let dailyYear = $state(now.getFullYear());
