@@ -27,3 +27,6 @@ data/
 .idea/
 .claude/
 .DS_Store
+
+# graphify (rebuilt locally by the post-commit hook)
+graphify-out/
